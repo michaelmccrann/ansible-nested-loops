@@ -1,0 +1,30 @@
+- hosts: 'localhost'
+  connection: local
+  gather_facts: no
+  # vars:
+  #   jdks: "{{ lookup('url', 'https://api.adoptopenjdk.net/v2/info/releases/openjdk8/') | from_json }}"
+  tasks:
+
+    - name: Set fact
+      set_fact:
+        jdk_file: ./jdk8.json
+
+    - name: Download api
+      get_url:
+        url: https://api.adoptopenjdk.net/v2/info/releases/openjdk8
+        dest: "{{ jdk_file }}"
+
+    - name: Set fact
+      set_fact:
+        jdks: "{{ lookup('file', '{{ jdk_file }}') | from_json }}"
+
+    - name: Show the length
+      debug: var={{ jdks|length}}
+      
+    - name: Show the names
+      include_tasks: adoptopenjdk_artifact.yml
+      loop: "{{ jdks }}"
+      loop_control:
+        loop_var: release
+
+  

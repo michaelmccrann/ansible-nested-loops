@@ -1,0 +1,60 @@
+
+- name: Get release name
+  debug: var=release.release_name
+
+- name: Set fact
+  set_fact:
+      url_prefix: "http://nexus3.mpo:8081/repository/misc_artifacts/"
+      url_query: "jvm/{{ release.release_name }}/{{ binary.binary_name }}.checksum"
+
+- name: Set fact
+  set_fact:
+    url_full:  "{{ url_prefix }}{{ url_query | urlencode }}"
+
+- name: Only allow linux
+  block:
+
+    - name: Show binary information
+      debug: var=binary.binary_name
+
+    - name: Is the binary already in the artifact repository 
+      uri:
+        url: "{{ url_full }}"
+        method: GET
+        user: admin
+        password: admin123
+        body_format: json
+        force_basic_auth: yes
+        status_code: [ 200, 404 ]
+      register: response
+ 
+    - name: Show state
+      debug: var=response.status
+
+    - name: Check if already in repo 
+      block:   
+
+        - debug: msg="Will upload"
+
+        - name: Create a dir VM 
+          file:
+            path: "./vm/{{ release.release_name }}"
+            state: directory          
+
+        - name: Download the binary {{ binary.binary_name }}
+          get_url:
+            url: "{{ binary.checksum_link }}"
+            dest: "./vm/{{ release.release_name }}/{{ binary.binary_name }}.checksum"
+          ignore_errors: true
+
+        - name: Upload the binary
+          command: curl -v -u admin:admin123 --upload-file "./vm/{{ release.release_name }}/{{ binary.binary_name }}.checksum" {{ url_full }}
+          ignore_errors: true
+
+      when: response.status|int == 404
+
+  when:
+    - binary.os == "linux" 
+    - binary.architecture == "x64"
+    
+

@@ -1,0 +1,81 @@
+---
+# Example of required fields in jdk_binary dictionary:
+#
+#   jdk_binary:
+#     release_name:     "jdk8u162-b12_openj9-0.8.0"
+#     os:               "aix"
+#     architecture":    "ppc64"
+#     binary_name":     "OpenJDK8_ppc64_AIX_jdk8u172-b11.tar.gz"
+#     binary_link":     "https://github.com/AdoptOpenJDK/openjdk8-releases/releases/download/jdk8u172-b11/OpenJDK8_ppc64_AIX_jdk8u172-b11.tar.gz"
+#     checksum_link":   "https://github.com/AdoptOpenJDK/openjdk8-releases/releases/download/jdk8u172-b11/OpenJDK8_ppc64_AIX_jdk8u172-b11.tar.gz.sha256.txt"
+     
+# - name: Show jdk_binary list
+#   debug: var=jdk_binary vebosity=1
+
+# - name: Show Nexus URL prefix
+#   debug: var=nexus_url_prefix vebosity=1
+
+# - name: Show Nexus user
+#   debug: var=nexus_user vebosity=1
+
+# - name: Show if Nexus password is defined
+#   debug: var=nexus_password is defined
+
+- name: Construct the required Nexus URL
+  set_fact:
+      nexus_path: "jvm/{{ adopt_openjdk_api.id }}/{{ jdk_binary.release_name }}/{{ jdk_binary.binary_name }}"
+
+- name: urlencode the Nexus URL
+  set_fact:
+    tmp_dir: ./tmp_download
+    nexus_url_full: "{{ nexus_url_prefix }}/{{ nexus_repo }}/{{ nexus_path | urlencode }}"
+
+- name: Only proces certain jdks (see when at bottom of block)
+  block:
+
+    - name: Is the jdk_binary already in the artifact repository 
+      uri:
+        url: "{{ nexus_url_full }}"
+        method: GET
+        user: "{{ nexus_user }}"
+        password: "{{ nexus_password }}"
+        body_format: json
+        force_basic_auth: yes
+        status_code: [ 200, 404 ]
+      register: response
+ 
+    - name: Show the response to the request to see if JDK is in Nexus
+      debug: var=response.status verbosity=1
+
+    - name: JDK not in in Nexus
+      block:   
+
+        - debug: msg="Binary {{ jdk_binary.binary_name }} not in Nexus. Will upload"
+        - debug: msg="Upload URL {{ nexus_url_full }}"
+
+        - name: Create a temporary dir to download jdk 
+          file:
+            path: "{{ tmp_dir }}"
+            state: directory          
+
+        - name: Download the jdk_binary {{ jdk_binary.binary_name }}
+          get_url:
+            url: "{{ jdk_binary.binary_link }}"
+            dest: "{{ tmp_dir }}/{{ jdk_binary.binary_name }}"
+          ignore_errors: true
+
+        - name: Upload the jdk_binary
+          command: curl -v -u {{ nexus_user}}:{{ nexus_password }} --upload-file "{{ tmp_dir }}/{{ jdk_binary.binary_name }}" {{ nexus_url_full }}
+          ignore_errors:    true
+          ignore_warnings:  true
+
+        - name: Delete temporary dir 
+          file:
+            path: "{{ tmp_dir }}"
+            state: absent
+
+      when: response.status|int == 404
+
+  when:
+    - jdk_binary.os == "linux" or jdk_binary.os == "windows"
+    - jdk_binary.architecture == "x64"

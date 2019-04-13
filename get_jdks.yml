@@ -1,0 +1,22 @@
+---
+- name: Get latest AdoptOpenJDK binaries
+  hosts: 'localhost'
+  connection: local
+  gather_facts: no
+  tasks:
+
+    - name: Get latest AdoptOpenJDK binaries
+      include_role:
+        name: adopt-openjdk
+        tasks_from: initiate
+      vars:
+        - nexus_url_prefix:     " http://10.8.8.8:8081/repository"
+        - nexus_user:           admin
+        - nexus_password:       admin123
+        - nexus_repo:           misc_artifacts
+      loop:
+          - { url: "https://api.adoptopenjdk.net/v2/info/releases/openjdk8",  id: java8  }
+          - { url: "https://api.adoptopenjdk.net/v2/info/releases/openjdk11", id: java11 }
+          - { url: "https://api.adoptopenjdk.net/v2/info/releases/openjdk12", id: java12 }
+      loop_control:
+        loop_var: adopt_openjdk_api

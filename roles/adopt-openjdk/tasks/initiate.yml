@@ -1,0 +1,25 @@
+---
+
+- name: Show the AdoptOpenJDK api URL that has a list of jdks available for download
+  debug: var=adopt_openjdk_api verbosity=1
+
+- name: Get the list of jdks that are availble for download
+  uri:
+    url: "{{ adopt_openjdk_api.url }}"
+  register: jdks
+
+- name: Show list of available jdks
+  debug: var=jdks.json verbosity=1
+
+- name: Loop on the complete list of available AdoptOpenJDK binaries and include the release_name into each 'binary' dictionary in the list
+  include_tasks: download_upload_jdk_binary.yml
+  loop: >-
+    {%- set my_binaries = [] -%}
+    {%- for release in jdks.json -%}
+    {%-   for binary in release.binaries -%}
+    {%-     set _ = my_binaries.append( binary |combine( {"release_name": release.release_name} ) ) -%}
+    {%-   endfor -%}
+    {%- endfor -%}
+    {{ my_binaries }}
+  loop_control:
+    loop_var: jdk_binary
